@@ -10,6 +10,8 @@ namespace FUTILS {
 /** 
  * Prints a spinner that, put in a while loop with negligible execution time,
  * spins at a given frequency.
+ *
+ * @param freq Animation update frequency
  */
 struct Spinner
 {
@@ -28,6 +30,7 @@ struct Spinner
 		//std::cout << "timeElapsed: " << timeElapsed << std::endl;
 		if (period - timeElapsed < 1E-3) {
 			//std::cout << "fabs(freq - timeElapsed): " << fabs(freq - timeElapsed) << std::endl;
+			//printf("\e[?25l"); /* hide the cursor */
 			putchar(' ');
 			putchar(spin_chars[spinIndex % spin_chars.length()]);
 			putchar(' ');
@@ -47,12 +50,14 @@ private:
 	std::string spin_chars;
 };
 
+/**
+ * Prints a classic dot animation that, put in a while loop with negligible execution time,
+ * plays at a given frequency.
+ *
+ * @param freq Animation update frequency
+ */
 struct Dotter
 {
-	/**
-	 * Prints a classic dot animation that, put in a while loop with negligible execution time,
-	 * plays at a given frequency.
-	 */
 	Dotter(int freq) :
 			freq(freq), spinIndex(0), spin_chars("... .. .. .. .... .... .") {
 		clock_gettime(CLOCK_MONOTONIC, &last);
@@ -103,6 +108,21 @@ void PrintSTLVectOfVects(T vecObj) {
 		std::cout << "#" << itr - vecObj.begin() << ": ";
 		PrintSTLVector(*itr);
 		std::cout << "\n";
+	}
+}
+
+std::string get_selfpath() {
+	char buff[2048];
+	ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff) - 1);
+	if (len != -1) {
+		buff[len] = '\0';
+		std::string path(buff);   ///Here the executable name is still in
+		std::string::size_type t = path.find_last_of("/");   // Here we find the last "/"
+		path = path.substr(0, t);                             // and remove the rest (exe name)
+		return path;
+	} else {
+		printf("Cannot determine executable path! [Exiting]\n");
+		exit(-1);
 	}
 }
 
