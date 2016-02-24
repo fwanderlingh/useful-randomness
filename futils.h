@@ -94,6 +94,7 @@ const char* const white =  	"\033[1;37m";
 }
 #endif
 
+
 namespace FUTILS
 {
 /// My first functor!!! :D
@@ -196,48 +197,127 @@ private:
  */
 struct Timer
 {
-	struct timespec start, lap, now;
+	Timer() :
+			running(false), elapsedTime(0), lapTime(0)
+	{
+	}
 
 	void Start()
 	{
 		clock_gettime(CLOCK_MONOTONIC, &start);
 		lap = start;
+		running = true;
 	}
 
+	void Stop()
+	{
+		lapTime = 0;
+		running = false;
+	}
+
+	/**
+	 * @return elapsed time since start in seconds, with nanosecond precision
+	 */
 	double Elapsed()
 	{
 		clock_gettime(CLOCK_MONOTONIC, &now);
-		double elapsedTime = (now.tv_sec - start.tv_sec) + (now.tv_nsec - start.tv_nsec) / 1E9;
+		elapsedTime = (now.tv_sec - start.tv_sec) + (now.tv_nsec - start.tv_nsec) / 1E9;
 		return elapsedTime;
 	}
 
+	/**
+	 * @return elapsed time since last Lap in seconds, with nanosecond precision
+	 */
 	double Lap()
 	{
 		clock_gettime(CLOCK_MONOTONIC, &now);
-		double lapTime = (now.tv_sec - lap.tv_sec) + (now.tv_nsec - lap.tv_nsec) / 1E9;
+		lapTime = (now.tv_sec - lap.tv_sec) + (now.tv_nsec - lap.tv_nsec) / 1E9;
+		laps.push_back(lapTime);
 		lap = now;
 		return lapTime;
 	}
+
+	double GetCurrentLapTime()
+	{
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		lapTime = (now.tv_sec - lap.tv_sec) + (now.tv_nsec - lap.tv_nsec) / 1E9;
+		return lapTime;
+	}
+
+	std::vector<double> laps;
+	bool running;
+
+private:
+	struct timespec start, lap, now;
+	double elapsedTime, lapTime;
 };
 
 template<typename T>
-void PrintSTLVector(T vecObj)
+void PrintArray(T arr, const int size, const char delimiter)
 {
-	for (typename T::iterator itr = vecObj.begin(); itr != vecObj.end(); ++itr) {
-		std::cout << *itr << " ";
+	for (int i = 0; i < size; ++i) {
+		std::cout << arr[i];
+		if (i < (size - 1)) {
+			std::cout << delimiter << " ";
+		}
 	}
 }
 
 template<typename T>
-void PrintSTLVectOfVects(T vecObj)
+void PrintSTLVector(T vecObj, const char delimiter)
+{
+	for (typename T::iterator itr = vecObj.begin(); itr != vecObj.end(); ++itr) {
+		std::cout << *itr;
+		if (itr != (vecObj.end() - 1)) {
+			std::cout << delimiter << " ";
+		}
+	}
+}
+
+template<typename T>
+void PrintSTLVectOfVects(T vecObj, const char delimiter)
 {
 	for (typename T::iterator itr = vecObj.begin(); itr != vecObj.end(); ++itr) {
 		std::cout << "#" << itr - vecObj.begin() << ": ";
-		PrintSTLVector(*itr);
+		PrintSTLVector(*itr, delimiter);
 		std::cout << "\n";
 	}
 }
 
+/**
+ * Returns the current date and time formatted as %Y-%m-%d_%H.%M.%S
+ *
+ * @return Current date
+ */
+std::string GetCurrentDateFormatted()
+{
+	std::time_t t = std::time(NULL);
+	char mbstr[20];
+	std::strftime(mbstr, sizeof(mbstr), "%Y-%m-%d_%H.%M.%S", std::localtime(&t));
+	std::string currentDate(mbstr);
+
+	return currentDate;
+}
+
+template<typename K, typename V>
+using MapIterator = typename std::map<K,V>::const_iterator;
+
+template<typename K, typename V>
+bool FindMapKeyByValue(const std::map<K, V> myMap, const V value, K &key)
+{
+	bool keyWasFound = false;
+	MapIterator<K, V> it;
+	for (it = myMap.begin(); it != myMap.end(); ++it) {
+		if (it->second == value) {
+			key = it->first;
+			keyWasFound = true;
+			break;
+		}
+	}
+	return keyWasFound;
+}
+
+#if defined(__linux__) || defined(linux)
 /**
  * Returns the path of the folder containing executable that calls this functions
  *
@@ -258,26 +338,9 @@ std::string get_selfpath()
 		exit(-1);
 	}
 }
-
-/**
- * Returns the current date and time formatted as %Y-%m-%d_%H.%M.%S
- *
- * @return Current date
- */
-std::string GetCurrentDateFormatted()
-{
-
-	std::time_t t = std::time(NULL);
-	char mbstr[20];
-	std::strftime(mbstr, sizeof(mbstr), "%Y-%m-%d_%H.%M.%S", std::localtime(&t));
-	std::string currentDate(mbstr);
-
-	return currentDate;
-}
+#endif
 
 } /* namespace FUTILS */
-
-
 
 #endif /* FUTILS_H_ */
 
