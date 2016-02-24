@@ -22,8 +22,6 @@
 #include <vector>
 #include <unistd.h>
 
-#include "term_colors.h"
-
 #ifdef DEBUG_PRINT
 #	define dout std::cerr
 #else
