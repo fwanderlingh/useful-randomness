@@ -21,6 +21,7 @@
 #include <ctime>
 #include <vector>
 #include <unistd.h>
+#include <map>
 
 #ifdef DEBUG_PRINT
 #	define dout std::cerr
