@@ -22,6 +22,8 @@
 #include <vector>
 #include <unistd.h>
 #include <map>
+#include <sys/types.h>
+#include <pwd.h>
 
 #ifdef DEBUG_PRINT
 #	define dout std::cerr
@@ -72,27 +74,27 @@
 #define TC_GRAY         "\033[1;37m"
 #define TC_NONE         "\033[0m"
 
-namespace tc {
-const char* const none = 	"\033[0m";
-const char* const blck =  	"\033[0;30m";
-const char* const grayD = 	"\033[1;30m";
-const char* const red =  	"\033[0;31m";
-const char* const redL = 	"\033[1;31m";
-const char* const grn =  	"\033[0;32m";
-const char* const grnL = 	"\033[1;32m";
-const char* const brwn =  	"\033[0;33m";
-const char* const yel =  	"\033[1;33m";
-const char* const blu =  	"\033[0;34m";
-const char* const bluL = 	"\033[1;34m";
-const char* const mag =  	"\033[0;35m";
-const char* const magL = 	"\033[1;35m";
-const char* const cyan =  	"\033[0;36m";
-const char* const cyanL = 	"\033[1;36m";
-const char* const grayL =  	"\033[0;37m";
-const char* const white =  	"\033[1;37m";
+namespace tc
+{
+const char* const none = "\033[0m";
+const char* const blck = "\033[0;30m";
+const char* const grayD = "\033[1;30m";
+const char* const red = "\033[0;31m";
+const char* const redL = "\033[1;31m";
+const char* const grn = "\033[0;32m";
+const char* const grnL = "\033[1;32m";
+const char* const brwn = "\033[0;33m";
+const char* const yel = "\033[1;33m";
+const char* const blu = "\033[0;34m";
+const char* const bluL = "\033[1;34m";
+const char* const mag = "\033[0;35m";
+const char* const magL = "\033[1;35m";
+const char* const cyan = "\033[0;36m";
+const char* const cyanL = "\033[1;36m";
+const char* const grayL = "\033[0;37m";
+const char* const white = "\033[1;37m";
 }
 #endif
-
 
 namespace FUTILS
 {
@@ -215,13 +217,17 @@ struct Timer
 	}
 
 	/**
-	 * @return elapsed time since start in seconds, with nanosecond precision
+	 * @return elapsed time since start in seconds, with nanosecond precision (if timer is running)
 	 */
 	double Elapsed()
 	{
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		elapsedTime = (now.tv_sec - start.tv_sec) + (now.tv_nsec - start.tv_nsec) / 1E9;
-		return elapsedTime;
+		if (running) {
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			elapsedTime = (now.tv_sec - start.tv_sec) + (now.tv_nsec - start.tv_nsec) / 1E9;
+			return elapsedTime;
+		} else {
+			return 0.0;
+		}
 	}
 
 	/**
@@ -263,14 +269,66 @@ void PrintArray(T arr, const int size, const char delimiter)
 }
 
 template<typename T>
-void PrintSTLVector(T vecObj, const char delimiter)
+void PrintCMATArray(T arr, const int size, const char delimiter)
 {
+	for (int i = 1; i <= size; ++i) {
+		std::cout << arr(i);
+		if (i < size) {
+			std::cout << delimiter << " ";
+		}
+	}
+}
+
+template<typename T>
+std::string ArrayToString(T arr, const int size, const char delimiter)
+{
+	std::string arrayText;
+	for (int i = 0; i < size; ++i) {
+		arrayText = arrayText + std::to_string(arr[i]);
+		if (i < (size - 1)) {
+			arrayText = arrayText + delimiter + " ";
+		}
+	}
+	return arrayText;
+}
+
+template<typename T>
+std::string CMATArrayToString(T arr, const int size, const char delimiter)
+{
+	std::string arrayText;
+	for (int i = 1; i <= size; ++i) {
+		arrayText = arrayText + std::to_string(arr(i));
+		if (i < size) {
+			arrayText = arrayText + delimiter + " ";
+		}
+	}
+	return arrayText;
+}
+
+template<typename T>
+void PrintSTLVector(T vecObj, const char delimiter, const std::string preText = "")
+{
+	std::cout << preText << " ";
 	for (typename T::iterator itr = vecObj.begin(); itr != vecObj.end(); ++itr) {
 		std::cout << *itr;
 		if (itr != (vecObj.end() - 1)) {
 			std::cout << delimiter << " ";
 		}
 	}
+}
+
+template<typename T>
+std::string STLVectorToString(T vecObj, const char delimiter, const std::string preText = "")
+{
+	std::string vectorText;
+	vectorText = preText + " ";
+	for (typename T::iterator itr = vecObj.begin(); itr != vecObj.end(); ++itr) {
+		vectorText = vectorText + std::to_string(*itr);
+		if (itr != (vecObj.end() - 1)) {
+			vectorText = vectorText + delimiter + " ";
+		}
+	}
+	return vectorText;
 }
 
 template<typename T>
@@ -316,6 +374,17 @@ bool FindMapKeyByValue(const std::map<K, V> myMap, const V value, K &key)
 	return keyWasFound;
 }
 
+/// Functor for getting sum of previous result and square of current element (innerproduct can be used instead)
+template<typename T>
+struct square
+{
+	T operator()(const T& Left, const T& Right) const
+	{
+		return (Left + Right * Right);
+	}
+};
+
+
 #if defined(__linux__) || defined(linux)
 /**
  * Returns the path of the folder containing executable that calls this functions
@@ -337,9 +406,22 @@ std::string get_selfpath()
 		exit(-1);
 	}
 }
-#endif
+
+/**
+ * Return user "home" directory
+ */
+std::string get_homepath()
+{
+	const char *homedir;
+
+	if ((homedir = getenv("HOME")) == NULL) {
+		homedir = getpwuid(getuid())->pw_dir;
+	}
+	return homedir;
+
+}
+#endif /* Linux functions*/
 
 } /* namespace FUTILS */
 
 #endif /* FUTILS_H_ */
-
