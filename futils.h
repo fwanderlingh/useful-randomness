@@ -17,14 +17,16 @@
 
 #include <iostream>
 #include <cstdio>
-#include <unistd.h> // needed for readlink
 #include <cstdlib>
 #include <ctime>
 #include <vector>
 #include <unistd.h>
 #include <map>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <pwd.h>
+#include <string.h>
+
 
 #ifdef DEBUG_PRINT
 #	define dout std::cerr
@@ -99,6 +101,30 @@ const char* const white = "\033[1;37m";
 
 namespace FUTILS
 {
+/**
+ * @brief Create folder if not existing
+ *
+ * @param path of the folder
+ * @return 0 if success (or folder exists) -1 otherwise (sets errno)
+ */
+int MakeDir(const char *path) {
+	/**
+	 *  S_IRWXU | S_IRWXG | S_IRWXO
+	 *  Read/write/search permissions for owner and group and others. Since mkdir() masks
+	 *  the mode with umask(), a further chmod() is needed.
+	 */
+	int ret = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+	chmod(path, S_IRWXU | S_IRWXG | S_IRWXO);
+	if (ret != 0) {
+		if (errno == EEXIST) {
+			ret = 0;
+		} else {
+			std::cerr << tc::redL << "Could not create log directory " << path << " (error: " << strerror(errno) << ")\n";
+		}
+	}
+	return ret;
+}
+
 /// My first functor!!! :D
 
 /** 
@@ -421,6 +447,13 @@ std::string get_homepath()
 	return homedir;
 
 }
+
+inline bool does_file_exists(const std::string& name) {
+  struct stat buffer;
+  return (stat (name.c_str(), &buffer) == 0);
+}
+
+
 #endif /* Linux functions*/
 
 } /* namespace FUTILS */
