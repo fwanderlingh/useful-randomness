@@ -1,6 +1,6 @@
 /**
  * @author Francesco Wanderlingh
- * @date Year 2015
+ * @date Year 2017
  *
  * @brief A set of useful C++ utilities ironically called "futils".
  *
@@ -16,23 +16,41 @@
 #define FUTILS_H_
 
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <ctime>
 #include <vector>
 #include <unistd.h>
 #include <map>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <pwd.h>
-#include <string.h>
-
+#include <iomanip>
+#include <algorithm>
+#include <memory>
+#include <stdexcept>
+#include <array>
 
 #ifdef DEBUG_PRINT
 #	define dout std::cerr
+#	define d_out(x) (std::cerr << x << std::endl)
 #else
 #	define dout 0 && std::cerr
+#	define d_out(x) 0 && std::cerr
 #endif
+
+
+//#define CTRL_out(x) (std::cout << tc::bluL << "[controller] " << tc::none << x)
+//#define DRIVER_out(x) (std::cout << tc::magL << "[driver] " << tc::none << x)
+//#define LOGGER_out(x) (std::cout << tc::grnL << "[logger] " << tc::none << x)
+
 
 /** Escape sequence
  *  \033[<code>m or \e[<code>m
@@ -99,6 +117,36 @@ const char* const white = "\033[1;37m";
 }
 #endif
 
+enum class LogEntities {
+	Controller, Driver, Logger, UDPReceiver, UDPSender, Generic
+};
+
+inline std::string DebugMsg(const LogEntities entity, const std::string inputMsg, const std::string generic = ""){
+	std::stringstream strstr;
+	switch (entity) {
+	case LogEntities::Controller:
+		strstr << tc::cyanL << "[controller] ";
+		break;
+	case LogEntities::Driver:
+		strstr << tc::magL << "[driver] ";
+		break;
+	case LogEntities::Logger:
+		strstr << tc::grnL << "[logger] ";
+		break;
+	case LogEntities::UDPReceiver:
+		strstr << tc::bluL << "[udpReceiver] ";
+		break;
+	case LogEntities::UDPSender:
+		strstr << tc::bluL << "[udpSender] ";
+		break;
+	case LogEntities::Generic:
+		strstr << tc::white << "[" << generic << "] ";
+		break;
+	}
+	strstr << tc::none  << inputMsg;
+	return strstr.str();
+}
+
 namespace FUTILS
 {
 /**
@@ -107,7 +155,7 @@ namespace FUTILS
  * @param path of the folder
  * @return 0 if success (or folder exists) -1 otherwise (sets errno)
  */
-int MakeDir(const char *path) {
+inline int MakeDir(const char *path) {
 	/**
 	 *  S_IRWXU | S_IRWXG | S_IRWXO
 	 *  Read/write/search permissions for owner and group and others. Since mkdir() masks
@@ -136,7 +184,7 @@ int MakeDir(const char *path) {
 struct Spinner
 {
 	Spinner(int frequency) :
-			freq(frequency), spinIndex(0), spin_chars("/-\\|")
+		freq(frequency), spinIndex(0), spin_chars("/-\\|")
 	{
 		clock_gettime(CLOCK_MONOTONIC, &last);
 		period = 1 / static_cast<double>(freq + 1E-6);
@@ -181,7 +229,7 @@ private:
 struct Dotter
 {
 	Dotter(int freq) :
-			freq(freq), spinIndex(0), spin_chars("... .. .. .. .... .... .")
+		freq(freq), spinIndex(0), spin_chars("... .. .. .. .... .... .")
 	{
 		clock_gettime(CLOCK_MONOTONIC, &last);
 		period = 1 / static_cast<double>(freq);
@@ -197,7 +245,7 @@ struct Dotter
 		//std::cout << "timeElapsed: " << timeElapsed << std::endl;
 		if (period - timeElapsed < 1E-3) {
 			//std::cout << "fabs(freq - timeElapsed): " << fabs(freq - timeElapsed) << std::endl;
-			putchar(' ');
+			//putchar(' ');
 			putchar(spin_chars[spinIndex % spin_chars.length()]);
 			putchar(spin_chars[(spinIndex % spin_chars.length()) + 1]);
 			putchar(spin_chars[(spinIndex % spin_chars.length()) + 2]);
@@ -226,7 +274,7 @@ private:
 struct Timer
 {
 	Timer() :
-			running(false), elapsedTime(0), lapTime(0)
+		running(false), elapsedTime(0), lapTime(0)
 	{
 	}
 
@@ -285,6 +333,28 @@ private:
 };
 
 template<typename T>
+inline std::string toStringPointDecimal(T val){
+	std::string s = std::to_string(val);
+	std::replace(s.begin(), s.end(), ',', '.');
+	return s;
+}
+
+/*
+template<typename T>
+inline std::string toStringPointDecimal(T val,  const int precision = 0){
+    std::streamsize defaultPrecision = std::cout.precision();
+    if(precision != 0){
+        std::setprecision(static_cast<std::streamsize>(precision));
+    }
+    std::ostringstream oss;
+    oss << std::setprecision(precision) << val;
+    std::string s = oss.str();
+    std::replace(s.begin(), s.end(), ',', '.');
+    std::setprecision(defaultPrecision);
+    return s;
+}
+ */
+template<typename T>
 void PrintArray(T arr, const int size, const char delimiter)
 {
 	for (int i = 0; i < size; ++i) {
@@ -307,11 +377,11 @@ void PrintCMATArray(T arr, const int size, const char delimiter)
 }
 
 template<typename T>
-std::string ArrayToString(T arr, const int size, const char delimiter)
+std::string ArrayToString(T arr, const int size, const char delimiter, const int precision = 0)
 {
 	std::string arrayText;
 	for (int i = 0; i < size; ++i) {
-		arrayText = arrayText + std::to_string(arr[i]);
+		arrayText = arrayText + toStringPointDecimal(arr[i]);
 		if (i < (size - 1)) {
 			arrayText = arrayText + delimiter + " ";
 		}
@@ -324,7 +394,7 @@ std::string CMATArrayToString(T arr, const int size, const char delimiter)
 {
 	std::string arrayText;
 	for (int i = 1; i <= size; ++i) {
-		arrayText = arrayText + std::to_string(arr(i));
+		arrayText = arrayText + toStringPointDecimal(arr(i));
 		if (i < size) {
 			arrayText = arrayText + delimiter + " ";
 		}
@@ -350,7 +420,7 @@ std::string STLVectorToString(T vecObj, const char delimiter, const std::string 
 	std::string vectorText;
 	vectorText = preText + " ";
 	for (typename T::iterator itr = vecObj.begin(); itr != vecObj.end(); ++itr) {
-		vectorText = vectorText + std::to_string(*itr);
+		vectorText = vectorText + toStringPointDecimal(*itr);
 		if (itr != (vecObj.end() - 1)) {
 			vectorText = vectorText + delimiter + " ";
 		}
@@ -373,7 +443,7 @@ void PrintSTLVectOfVects(T vecObj, const char delimiter)
  *
  * @return Current date
  */
-std::string GetCurrentDateFormatted()
+inline std::string GetCurrentDateFormatted()
 {
 	std::time_t t = std::time(NULL);
 	char mbstr[20];
@@ -418,7 +488,7 @@ struct square
  *
  * @return String with the folder path
  */
-std::string get_selfpath()
+inline std::string get_selfpath()
 {
 	char buff[2048];
 	ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff) - 1);
@@ -437,7 +507,7 @@ std::string get_selfpath()
 /**
  * Return user "home" directory
  */
-std::string get_homepath()
+inline std::string get_homepath()
 {
 	const char *homedir;
 
@@ -449,13 +519,95 @@ std::string get_homepath()
 }
 
 inline bool does_file_exists(const std::string& name) {
-  struct stat buffer;
-  return (stat (name.c_str(), &buffer) == 0);
+	struct stat buffer;
+	return (stat (name.c_str(), &buffer) == 0);
 }
 
+inline std::string exec(const char* cmd) {
+	std::array<char, 128> buffer;
+	std::string result;
+	std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
+	if (!pipe) throw std::runtime_error("popen() failed!");
+	while (!feof(pipe.get())) {
+		if (fgets(buffer.data(), 128, pipe.get()) != NULL)
+			result += buffer.data();
+	}
+	return result;
+}
+
+inline void ParseIPString(const std::string input_Str, unsigned char ip[4]){
+	std::string ipString = input_Str, ip_chunk;
+	std::string::size_type t1;
+	for (int i = 0; i < 3; ++i) {
+		t1 = ipString.find_first_of(".");
+		ip_chunk = ipString.substr(0, t1);
+		ip[i] = static_cast<unsigned char>(stod(ip_chunk, &t1));
+		ipString = ipString.substr(t1 + 1, ipString.size());
+	}
+	ip[3] = static_cast<unsigned char>(stod(ipString, &t1));
+}
+
+inline void paddr(unsigned char *a)
+{
+	printf("%d.%d.%d.%d\n", a[0], a[1], a[2], a[3]);
+}
+
+inline void die(std::string s)
+{
+	perror(s.c_str());
+	exit(1);
+}
+
+inline bool ConfigureSenderSocket(struct sockaddr_in &si_out, char *ip, uint16_t port){
+
+	// zero out the structure
+	memset((char *) &si_out, 0, sizeof(si_out));
+	si_out.sin_family = AF_INET;
+	si_out.sin_port = htons(port);
+
+	if (inet_aton(ip , &si_out.sin_addr) == 0)
+	{
+		fprintf(stderr, "inet_aton() failed\n");
+		exit(1);
+	}
+
+	return true;
+}
+
+inline bool ConfigureReceiverSocket(int &sockfd, struct sockaddr_in &si_in, uint16_t port, bool nonBlocking){
+	///
+	/// SOCKET Initialization
+	///
+	if ((sockfd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+	{
+		die("socket");
+	}
+
+	// zero out the structure
+	memset((char *) &si_in, 0, sizeof(si_in));
+	si_in.sin_family = AF_INET;
+	si_in.sin_port = htons(port);
+	si_in.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	//bind socket to port
+	if(bind(sockfd , (struct sockaddr*)&si_in, sizeof(si_in) ) == -1)
+	{
+		die("bind");
+	}
+
+	if(nonBlocking){
+		// Put the socket in non-blocking mode:
+		if(fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFL) | O_NONBLOCK) < 0) {
+			die("Error in putting the socket in non blocking mode");
+		}
+	}
+
+	return true;
+}
 
 #endif /* Linux functions*/
 
 } /* namespace FUTILS */
 
 #endif /* FUTILS_H_ */
+
